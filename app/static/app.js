@@ -113,11 +113,19 @@ function detectLoop(ts) {
     setCameraHandState(true);
     updateRingProgress();
     runAutoLogic();
+    // Show brightness quality indicator
+    if (state.currentTab === 'scan') {
+      updateBrightnessBadge(video, result.landmarks[0], 'brightnessBadge');
+    } else {
+      updateBrightnessBadge(videoReg, result.landmarks[0], 'brightnessBadgeReg');
+    }
   } else {
     state.handSeenMs = Math.max(0, state.handSeenMs - dt * 2.5);
     if (state.handSeenMs <= 0) {
       setCameraHandState(false);
       state.lastLandmarks = null;
+      $('brightnessBadge').style.display    = 'none';
+      $('brightnessBadgeReg').style.display = 'none';
     }
     updateRingProgress();
   }
@@ -149,6 +157,59 @@ function drawLandmarks(result, cvs) {
       radius: 2,
     });
   }
+}
+
+// ── Brightness feedback ───────────────────────────────────────────
+// Reads the mean luminance of the palm ROI canvas and updates a small
+// badge so users know whether lighting conditions are suitable.
+function updateBrightnessBadge(videoEl, landmarks, badgeId) {
+  const badge = $(badgeId);
+  if (!badge) return;
+  if (!landmarks) { badge.style.display = 'none'; return; }
+
+  const w = videoEl.videoWidth  || 640;
+  const h = videoEl.videoHeight || 480;
+  const wrist     = landmarks[WRIST];
+  const indexMcp  = landmarks[INDEX_MCP];
+  const middleMcp = landmarks[MIDDLE_MCP];
+  const pinkyMcp  = landmarks[PINKY_MCP];
+
+  const cx = Math.round(middleMcp.x * w);
+  const cy = Math.round(((middleMcp.y + wrist.y) / 2) * h);
+  const palmWidth = Math.abs(Math.round((indexMcp.x - pinkyMcp.x) * w));
+  const roiSize = Math.max(Math.round(palmWidth * 1.5), 60);
+  const half = Math.round(roiSize / 2);
+  const x1 = Math.max(0, cx - half);
+  const y1 = Math.max(0, cy - half);
+  const cropW = Math.min(w, cx + half) - x1;
+  const cropH = Math.min(h, cy + half) - y1;
+  if (cropW <= 0 || cropH <= 0) { badge.style.display = 'none'; return; }
+
+  // Sample into a tiny 32×32 canvas to keep this cheap
+  const tmp = document.createElement('canvas');
+  tmp.width = 32; tmp.height = 32;
+  tmp.getContext('2d').drawImage(videoEl, x1, y1, cropW, cropH, 0, 0, 32, 32);
+  const pixels = tmp.getContext('2d').getImageData(0, 0, 32, 32).data;
+
+  let sum = 0;
+  for (let i = 0; i < pixels.length; i += 4) {
+    // Rec.709 luminance weights
+    sum += pixels[i] * 0.2126 + pixels[i+1] * 0.7152 + pixels[i+2] * 0.0722;
+  }
+  const mean = sum / (pixels.length / 4);
+
+  let label, cls;
+  if (mean < 55) {
+    label = 'Too dark'; cls = 'bri-dark';
+  } else if (mean > 200) {
+    label = 'Too bright'; cls = 'bri-bright';
+  } else {
+    label = 'Good light'; cls = 'bri-good';
+  }
+
+  badge.textContent = label;
+  badge.className = `brightness-badge ${cls}`;
+  badge.style.display = 'block';
 }
 
 // ── Client-side ROI extraction ───────────────────────────────────

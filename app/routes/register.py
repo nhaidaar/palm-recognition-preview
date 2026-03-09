@@ -54,7 +54,8 @@ async def register(req: RegisterRequest):
 
     avg_embedding = np.mean(embeddings, axis=0).astype(np.float32)
 
-    # Reject if this palm is already registered under a different name
+    # Reject if this palm is already registered under a different name.
+    # Duplicate check uses the average embedding as a fast representative.
     stored = db.get_all_embeddings()
     dupe = palm_processor.compute_similarity(avg_embedding, stored, DUPLICATE_THRESHOLD)
     if dupe["status"] == "ALLOWED":
@@ -65,5 +66,9 @@ async def register(req: RegisterRequest):
                    "Use a different palm or remove the existing user first.",
         )
 
-    user_id = db.add_user(req.name.strip(), avg_embedding)
+    # Store the averaged embedding on the users row AND all individual capture
+    # embeddings in user_embeddings.  Recognition will match against each
+    # individual capture, so a future scan from a different device/lighting
+    # only needs to match one of the 5 captures rather than their blended average.
+    user_id = db.add_user(req.name.strip(), avg_embedding, individual_embeddings=embeddings)
     return RegisterResponse(success=True, user_id=user_id, name=req.name.strip())

@@ -168,9 +168,17 @@ class PalmProcessor:
     def preprocess_roi(self, roi: np.ndarray) -> np.ndarray:
         gray = cv2.cvtColor(roi, cv2.COLOR_RGB2GRAY)
         enhanced = self.apply_clahe(gray)
+        # Normalize mean brightness to ~128 regardless of camera auto-exposure.
+        # This is the primary fix for cross-device / cross-lighting failures.
+        mean_val = float(enhanced.mean())
+        if mean_val > 1:
+            enhanced = np.clip(enhanced * (128.0 / mean_val), 0, 255).astype(np.uint8)
+        # Reduce camera-specific sensor noise while preserving palm line edges.
+        enhanced = cv2.bilateralFilter(enhanced, d=5, sigmaColor=50, sigmaSpace=50)
         rgb = cv2.cvtColor(enhanced, cv2.COLOR_GRAY2RGB)
         resized = cv2.resize(rgb, IMG_SIZE, interpolation=cv2.INTER_CUBIC)
-        return resized.astype(np.float32)
+        # Normalize to [0, 1] — standard input range for CNN-based models.
+        return (resized / 255.0).astype(np.float32)
 
     def get_embedding(self, frame_rgb: np.ndarray):
         roi = self.extract_palm_roi(frame_rgb)

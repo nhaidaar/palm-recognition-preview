@@ -8,6 +8,9 @@ class Database:
         self.db_path = str(db_path)
         self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        # Enable foreign-key enforcement so ON DELETE CASCADE works for
+        # user_embeddings when a user row is deleted.
+        self.conn.execute("PRAGMA foreign_keys = ON")
         self._create_tables()
 
     def _create_tables(self):
@@ -17,6 +20,17 @@ class Database:
                 name        TEXT NOT NULL,
                 embedding   BLOB NOT NULL,
                 created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            -- Individual per-capture embeddings for multi-embedding matching.
+            -- Stored alongside the averaged embedding in users.embedding so that
+            -- recognition can match against the closest single capture rather than
+            -- a blended average, improving cross-device / cross-lighting recall.
+            CREATE TABLE IF NOT EXISTS user_embeddings (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER NOT NULL,
+                embedding   BLOB NOT NULL,
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
             CREATE TABLE IF NOT EXISTS access_logs (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,13 +44,24 @@ class Database:
         """)
         self.conn.commit()
 
-    def add_user(self, name: str, embedding: np.ndarray) -> int:
+    def add_user(
+        self,
+        name: str,
+        embedding: np.ndarray,
+        individual_embeddings: "list[np.ndarray] | None" = None,
+    ) -> int:
         cursor = self.conn.execute(
             "INSERT INTO users (name, embedding) VALUES (?, ?)",
             (name, embedding.tobytes()),
         )
+        user_id = cursor.lastrowid
+        if individual_embeddings:
+            self.conn.executemany(
+                "INSERT INTO user_embeddings (user_id, embedding) VALUES (?, ?)",
+                [(user_id, e.tobytes()) for e in individual_embeddings],
+            )
         self.conn.commit()
-        return cursor.lastrowid
+        return user_id
 
     def get_all_users(self) -> list:
         rows = self.conn.execute(
@@ -45,17 +70,42 @@ class Database:
         return [dict(r) for r in rows]
 
     def get_all_embeddings(self) -> list:
-        rows = self.conn.execute(
+        """Return one entry per stored embedding.
+
+        For users registered after multi-embedding support was added, each of
+        their individual capture embeddings is returned as a separate entry
+        (all sharing the same user_id/name).  For legacy users who only have
+        the averaged embedding, that single embedding is returned instead.
+        """
+        users = self.conn.execute(
             "SELECT id, name, embedding FROM users ORDER BY id"
         ).fetchall()
-        return [
-            {
-                "id": r["id"],
-                "name": r["name"],
-                "embedding": np.frombuffer(r["embedding"], dtype=np.float32).copy(),
-            }
-            for r in rows
-        ]
+
+        indiv_rows = self.conn.execute(
+            "SELECT user_id, embedding FROM user_embeddings ORDER BY user_id, id"
+        ).fetchall()
+
+        # Build a map: user_id → [individual embeddings]
+        indiv_map: dict[int, list] = {}
+        for row in indiv_rows:
+            indiv_map.setdefault(row["user_id"], []).append(
+                np.frombuffer(row["embedding"], dtype=np.float32).copy()
+            )
+
+        result = []
+        for u in users:
+            uid, name = u["id"], u["name"]
+            if uid in indiv_map:
+                for emb in indiv_map[uid]:
+                    result.append({"id": uid, "name": name, "embedding": emb})
+            else:
+                # Legacy user — fall back to averaged embedding
+                result.append({
+                    "id": uid,
+                    "name": name,
+                    "embedding": np.frombuffer(u["embedding"], dtype=np.float32).copy(),
+                })
+        return result
 
     def delete_user(self, user_id: int) -> bool:
         cursor = self.conn.execute("DELETE FROM users WHERE id = ?", (user_id,))

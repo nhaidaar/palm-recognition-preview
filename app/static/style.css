@@ -287,6 +287,26 @@ body {
   flex-shrink: 0;
 }
 
+/* Brightness quality indicator */
+.brightness-badge {
+  position: absolute;
+  bottom: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 100px;
+  white-space: nowrap;
+  z-index: 5;
+  backdrop-filter: blur(4px);
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+.brightness-badge.bri-good   { background: oklch(52% 0.17 145 / 0.85); color: #fff; }
+.brightness-badge.bri-dark   { background: oklch(35% 0.05 255 / 0.80); color: #fff; }
+.brightness-badge.bri-bright { background: oklch(65% 0.16 55  / 0.85); color: #fff; }
+
 /* Auto-scan countdown ring */
 .autoscan-ring {
   position: absolute;
