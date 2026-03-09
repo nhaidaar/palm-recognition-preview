@@ -9,8 +9,8 @@ HAND_LANDMARKER_PATH = BASE_DIR / "hand_landmarker.task"
 # e.g. DB_PATH=/data/palmprint.db → mount a named volume at /data
 DB_PATH = Path(os.getenv("DB_PATH", str(BASE_DIR / "palmprint.db")))
 
-SIMILARITY_THRESHOLD = 0.65
-DUPLICATE_THRESHOLD  = 0.80   # block registration if palm already matches at this level
+SIMILARITY_THRESHOLD = 0.75
+DUPLICATE_THRESHOLD  = 0.75   # block registration if palm already matches at this level
 REGISTRATION_CAPTURES = 5
 
 IMG_SIZE = (224, 224)

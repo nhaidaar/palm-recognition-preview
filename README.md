@@ -41,8 +41,8 @@ Open: [http://127.0.0.1:8000](http://127.0.0.1:8000)
 ## How it works
 
 1. MediaPipe Hands detects your palm and extracts a square ROI
-2. CLAHE enhances contrast, mean-brightness is normalized to ~128, bilateral filter removes sensor noise
-3. Image is resized to 224×224 and scaled to [0, 1]
+2. CLAHE enhances local contrast
+3. Image is resized to 224×224 (float32, 0-255 range)
 4. `final1.tflite` (EfficientNetB0) generates a 1280-dim embedding
 5. Cosine similarity compares the query embedding against each of the 5 stored per-capture embeddings; the best match per user is used
 6. Result: ALLOWED (≥ 0.65 similarity) or DENIED
