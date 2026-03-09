@@ -14,6 +14,10 @@ services:
       - DB_PATH=/data/palmprint.db
 
     volumes:
+      # ML model files — copy these to the VPS once (they are gitignored):
+      #   scp final1.tflite hand_landmarker.task user@vps:/opt/palmgate/
+      - ./final1.tflite:/app/final1.tflite:ro
+      - ./hand_landmarker.task:/app/hand_landmarker.task:ro
       # Persistent storage for the SQLite database
       - palmgate-db:/data
 

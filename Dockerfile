@@ -39,9 +39,6 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Application source
 COPY app/ ./app/
 
-# ML model files (baked into the image — no extra scp required on the VPS)
-COPY final1.tflite hand_landmarker.task ./
-
 # Writable directory for the SQLite database.
 # Mount a named volume here (see docker-compose.yml) so data survives
 # container restarts and image rebuilds.
