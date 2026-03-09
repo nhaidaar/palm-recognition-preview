@@ -1,0 +1,40 @@
+# Version control
+.git
+.gitignore
+
+# Cursor / IDE
+.cursor
+.vscode
+*.code-workspace
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+
+# Virtual environments
+.venv
+venv
+env
+
+# Local database (container uses a named volume)
+*.db
+
+# Jupyter notebooks
+*.ipynb
+
+# Tests and docs (not needed in the image)
+tests/
+docs/
+
+# Docker files (no need to recurse)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Misc
+*.md
+*.log

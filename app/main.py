@@ -1,0 +1,59 @@
+import time
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
+from pathlib import Path
+
+from app.config import MODEL_PATH, DB_PATH
+from app.database import Database
+from app.palm_processor import PalmProcessor
+from app.routes import recognize, register, users, logs, debug
+
+db: Database = None
+palm_processor: PalmProcessor = None
+
+# Timestamp stamped at process start — appended to static asset URLs so the
+# browser fetches fresh CSS/JS on every uvicorn restart without manual cache
+# clearing.
+_BUILD_TS = str(int(time.time()))
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global db, palm_processor
+    db = Database(DB_PATH)
+    palm_processor = PalmProcessor(MODEL_PATH)
+    yield
+    palm_processor.close()
+    db.close()
+
+
+app = FastAPI(title="Palmprint Recognition Preview", lifespan=lifespan)
+
+app.include_router(recognize.router)
+app.include_router(register.router)
+app.include_router(users.router)
+app.include_router(logs.router)
+app.include_router(debug.router)
+
+static_dir = Path(__file__).parent / "static"
+static_dir.mkdir(exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+
+@app.get("/")
+async def index():
+    html = (static_dir / "index.html").read_text(encoding="utf-8")
+    # Rewrite static asset URLs to include the build timestamp so the browser
+    # never serves a stale CSS or JS file after a server restart.
+    html = html.replace('href="/static/style.css"',
+                        f'href="/static/style.css?v={_BUILD_TS}"')
+    html = html.replace('href="/static/favicon.svg"',
+                        f'href="/static/favicon.svg?v={_BUILD_TS}"')
+    html = html.replace('src="/static/app.js"',
+                        f'src="/static/app.js?v={_BUILD_TS}"')
+    return HTMLResponse(
+        content=html,
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )

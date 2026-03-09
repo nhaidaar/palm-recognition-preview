@@ -1,0 +1,8 @@
+fastapi==0.115.*
+uvicorn[standard]==0.34.*
+mediapipe==0.10.*
+opencv-python-headless==4.11.*
+numpy>=1.26,<2.0
+python-multipart==0.0.*
+# tensorflow-cpu keeps the image ~600 MB instead of ~2 GB (no CUDA)
+tensorflow-cpu==2.16.*

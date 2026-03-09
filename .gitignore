@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE / editors
+.vscode/
+.idea/
+*.code-workspace
+
+# Cursor
+.cursor/
+
+# Jupyter
+*.ipynb
+.ipynb_checkpoints/
+
+# Database (runtime data, not source)
+*.db
+*.sqlite
+*.sqlite3
+
+# ML model files (large binaries — store separately, not in git)
+*.tflite
+*.task
+*.h5
+*.pb
+*.onnx
+*.pt
+*.pth
+
+# Docker
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment variables
+.env
+.env.*
+!.env.example

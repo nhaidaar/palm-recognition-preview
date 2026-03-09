@@ -1,0 +1,64 @@
+import os
+import tempfile
+import numpy as np
+import pytest
+from app.database import Database
+
+
+@pytest.fixture
+def db():
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    database = Database(path)
+    yield database
+    database.close()
+    os.unlink(path)
+
+
+def test_add_user(db):
+    embedding = np.random.rand(1280).astype(np.float32)
+    user_id = db.add_user("TestUser", embedding)
+    assert user_id is not None
+    assert user_id > 0
+
+
+def test_get_all_users(db):
+    emb1 = np.random.rand(1280).astype(np.float32)
+    emb2 = np.random.rand(1280).astype(np.float32)
+    db.add_user("Alice", emb1)
+    db.add_user("Bob", emb2)
+    users = db.get_all_users()
+    assert len(users) == 2
+    assert users[0]["name"] == "Alice"
+    assert users[1]["name"] == "Bob"
+
+
+def test_get_all_embeddings(db):
+    emb = np.random.rand(1280).astype(np.float32)
+    db.add_user("Alice", emb)
+    embeddings = db.get_all_embeddings()
+    assert len(embeddings) == 1
+    assert embeddings[0]["name"] == "Alice"
+    np.testing.assert_array_almost_equal(embeddings[0]["embedding"], emb, decimal=5)
+
+
+def test_delete_user(db):
+    emb = np.random.rand(1280).astype(np.float32)
+    user_id = db.add_user("ToDelete", emb)
+    assert db.delete_user(user_id) is True
+    assert len(db.get_all_users()) == 0
+
+
+def test_add_access_log(db):
+    db.add_access_log(user_id=None, matched_name="Unknown", status="DENIED", similarity=0.3)
+    logs = db.get_access_logs(limit=10)
+    assert len(logs) == 1
+    assert logs[0]["status"] == "DENIED"
+    assert logs[0]["matched_name"] == "Unknown"
+
+
+def test_get_access_logs_ordered(db):
+    db.add_access_log(None, "First", "DENIED", 0.1)
+    db.add_access_log(None, "Second", "DENIED", 0.2)
+    logs = db.get_access_logs(limit=10)
+    assert logs[0]["matched_name"] == "Second"

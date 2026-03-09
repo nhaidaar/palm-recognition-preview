@@ -1,0 +1,28 @@
+services:
+  palmgate:
+    build: .
+    container_name: palmgate
+    restart: unless-stopped
+
+    ports:
+      # Change the left-hand number to expose on a different host port,
+      # e.g. "80:8000" if you want to serve directly without a reverse proxy.
+      - "8000:8000"
+
+    environment:
+      # Database is stored in the named volume below so it survives rebuilds.
+      - DB_PATH=/data/palmprint.db
+
+    volumes:
+      # Persistent storage for the SQLite database
+      - palmgate-db:/data
+
+    # Optional: uncomment to limit resource usage on a small VPS
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 1g
+
+volumes:
+  palmgate-db:
+    driver: local

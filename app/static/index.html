@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PalmGate — Palm access</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="shortcut icon" href="/static/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <div class="logo-mark">
+        <svg width="26" height="26" viewBox="0 0 28 28" fill="none">
+          <circle cx="14" cy="14" r="6" stroke="currentColor" stroke-width="2"/>
+          <circle cx="14" cy="14" r="2" fill="currentColor"/>
+          <path d="M14 2v4M14 22v4M2 14h4M22 14h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="header-brand">
+        <span class="brand-name">PalmGate</span>
+        <span class="brand-sub">Biometric access</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="status-dot" id="systemStatus"></div>
+      <span class="status-label" id="systemStatusLabel">Online</span>
+    </div>
+  </header>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <button class="nav-btn active" data-tab="scan">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/>
+        <rect x="10" y="1" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/>
+        <rect x="1" y="10" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M10 10.5H15.5M12.75 8V15.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <span>Scan</span>
+    </button>
+    <button class="nav-btn" data-tab="register">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M2 14c0-3.314 2.686-5 6-5s6 1.686 6 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M12 8v4M10 10h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <span>Register</span>
+    </button>
+    <button class="nav-btn" data-tab="log">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M2 4h12M2 8h8M2 12h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <span>Log</span>
+    </button>
+  </nav>
+
+  <main class="main">
+
+    <!-- ==================== SCAN PANEL ==================== -->
+    <section class="panel active" id="panel-scan">
+      <div class="panel-grid">
+
+        <!-- Camera column -->
+        <div class="camera-col">
+          <div class="camera-frame" id="cameraFrame">
+            <video id="video" autoplay playsinline muted></video>
+
+            <!-- Landmark overlay canvas -->
+            <canvas id="overlayCanvas" class="overlay-canvas"></canvas>
+
+            <!-- Hidden capture canvas -->
+            <canvas id="canvas" style="display:none;"></canvas>
+
+            <!-- Auto-scan countdown ring -->
+            <div class="autoscan-ring" id="autoscanRing" style="display:none;">
+              <svg viewBox="0 0 100 100" class="ring-svg">
+                <circle class="ring-track" cx="50" cy="50" r="42"/>
+                <circle class="ring-fill"  cx="50" cy="50" r="42" id="ringFill"/>
+              </svg>
+              <span class="ring-label" id="ringLabel">Hold</span>
+            </div>
+
+            <!-- Palm guide -->
+            <div class="palm-guide" id="palmGuide">
+              <div class="guide-ring outer"></div>
+              <div class="guide-ring inner"></div>
+              <div class="guide-label" id="guideLabel">Place palm here</div>
+            </div>
+
+            <!-- Flash overlay -->
+            <div class="capture-flash" id="captureFlash"></div>
+
+            <!-- Camera status -->
+            <div class="camera-status" id="cameraStatus">
+              <span class="cam-dot"></span>
+              Camera ready
+            </div>
+          </div>
+
+          <!-- Controls -->
+          <div class="scan-controls">
+            <button class="btn btn-primary btn-scan" id="btnScan">
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                <path d="M10 2C5.582 2 2 5.582 2 10s3.582 8 8 8 8-3.582 8-8-3.582-8-8-8z" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M6 10l2.5 2.5L14 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Scan now
+            </button>
+            <button class="btn btn-mode" id="btnMode" aria-label="Toggle auto-detect mode">
+              Auto
+            </button>
+          </div>
+        </div>
+
+        <!-- Result column -->
+        <div class="result-col">
+          <div class="result-card" id="resultCard">
+            <div class="result-idle" id="resultIdle">
+              <div class="idle-icon">
+                <svg width="52" height="52" viewBox="0 0 56 56" fill="none">
+                  <path d="M28 8v16M20 12l4 4M36 12l-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M16 24c0-6.627 5.373-12 12-12s12 5.373 12 12v12c0 2.209-1.791 4-4 4H20c-2.209 0-4-1.791-4-4V24z" stroke="currentColor" stroke-width="2"/>
+                  <path d="M22 36v4a2 2 0 002 2h8a2 2 0 002-2v-4" stroke="currentColor" stroke-width="2"/>
+                  <path d="M22 28h12M22 32h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <p class="idle-text" id="idleText">Hold your open palm<br/>in front of the camera</p>
+              <div class="idle-hint" id="idleHint">Auto-detect on</div>
+            </div>
+
+            <div class="result-display" id="resultDisplay" style="display:none;">
+              <div class="result-badge">
+                <div class="badge-icon" id="badgeIcon"></div>
+                <div class="badge-status" id="badgeStatus"></div>
+              </div>
+              <div class="result-name" id="resultName"></div>
+              <div class="result-meta">
+                <div class="meta-row" id="timingRow" style="display:none;">
+                  <span class="meta-label">Identified in</span>
+                  <span class="meta-value meta-timing" id="resultTiming">—</span>
+                </div>
+                <div class="meta-row">
+                  <span class="meta-label">Similarity</span>
+                  <span class="meta-value" id="resultSimilarity">—</span>
+                </div>
+                <div class="meta-row" id="closestRow" style="display:none;">
+                  <span class="meta-label">Closest match</span>
+                  <span class="meta-value" id="resultClosest">—</span>
+                </div>
+                <div class="meta-row">
+                  <span class="meta-label">At</span>
+                  <span class="meta-value" id="resultTimestamp">—</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="result-scanning" id="resultScanning" style="display:none;">
+              <div class="scan-animation">
+                <div class="scan-line"></div>
+              </div>
+              <p class="scanning-text">Analyzing palmprint…</p>
+            </div>
+          </div>
+
+          <!-- Mini stats -->
+          <div class="mini-stats">
+            <div class="stat-item">
+              <span class="stat-num" id="statTotal">0</span>
+              <span class="stat-label">Total</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+              <span class="stat-num" id="statAllowed">0</span>
+              <span class="stat-label">Allowed</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+              <span class="stat-num" id="statDenied">0</span>
+              <span class="stat-label">Denied</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+              <span class="stat-num" id="statUsers">0</span>
+              <span class="stat-label">Enrolled</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==================== REGISTER PANEL ==================== -->
+    <section class="panel" id="panel-register">
+      <div class="register-layout">
+
+        <div class="register-camera-col">
+          <div class="camera-frame reg-camera" id="regCameraFrame">
+            <video id="videoReg" autoplay playsinline muted></video>
+            <canvas id="overlayCanvasReg" class="overlay-canvas"></canvas>
+
+            <!-- Register auto-capture ring -->
+            <div class="autoscan-ring" id="autoscanRingReg" style="display:none;">
+              <svg viewBox="0 0 100 100" class="ring-svg">
+                <circle class="ring-track" cx="50" cy="50" r="42"/>
+                <circle class="ring-fill"  cx="50" cy="50" r="42" id="ringFillReg"/>
+              </svg>
+              <span class="ring-label" id="ringLabelReg">Hold</span>
+            </div>
+
+            <div class="palm-guide" id="palmGuideReg">
+              <div class="guide-ring outer"></div>
+              <div class="guide-label">Align palm</div>
+            </div>
+
+            <div class="capture-flash" id="captureFlashReg"></div>
+            <div class="capture-counter" id="captureCounter">0 / 5</div>
+          </div>
+
+          <button class="btn btn-secondary btn-capture" id="btnCapture">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <circle cx="9" cy="9" r="7" stroke="currentColor" stroke-width="1.5"/>
+              <circle cx="9" cy="9" r="3" fill="currentColor"/>
+            </svg>
+            Capture
+          </button>
+        </div>
+
+        <div class="register-form-col">
+          <div class="form-block">
+            <h2 class="form-title">Register new user</h2>
+            <p class="form-desc">Hold your palm open and still — auto-capture takes 5 samples automatically.</p>
+
+            <div class="field-group">
+              <label class="field-label" for="userName">Full name</label>
+              <input
+                class="field-input"
+                type="text"
+                id="userName"
+                placeholder="Enter name…"
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </div>
+
+            <div class="captures-row">
+              <span class="captures-label">Samples captured</span>
+              <div class="capture-dots" id="captureDots">
+                <span class="dot" data-i="0"></span>
+                <span class="dot" data-i="1"></span>
+                <span class="dot" data-i="2"></span>
+                <span class="dot" data-i="3"></span>
+                <span class="dot" data-i="4"></span>
+              </div>
+            </div>
+
+            <div class="register-hint" id="registerHint">
+              Enter a name, then hold your palm in front of the camera.
+            </div>
+
+            <div class="register-actions">
+              <button class="btn btn-primary btn-register" id="btnRegister" disabled>
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                  <path d="M3 9l4 4 8-8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Register
+              </button>
+              <button class="btn btn-ghost btn-reset-captures" id="btnReset" disabled aria-label="Clear all captured samples and start over">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M2 8a6 6 0 1 0 1.5-3.9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                  <path d="M2 4v4h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Reset
+              </button>
+            </div>
+
+            <div class="register-feedback" id="registerFeedback"></div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==================== LOG PANEL ==================== -->
+    <section class="panel" id="panel-log">
+      <div class="log-header">
+        <h2 class="log-title">Access log</h2>
+        <button class="btn btn-ghost btn-refresh" id="btnRefresh">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M14 8A6 6 0 112 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M14 4v4h-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Refresh
+        </button>
+      </div>
+
+      <div class="log-table-wrap">
+        <table class="log-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Name</th>
+              <th>Status</th>
+              <th>Match %</th>
+            </tr>
+          </thead>
+          <tbody id="logTableBody">
+            <tr class="log-empty-row">
+              <td colspan="4">
+                <div class="log-empty">
+                  <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                    <path d="M8 12h24M8 20h16M8 28h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                  </svg>
+                  <span>No access attempts recorded yet</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="users-section">
+        <div class="users-header">
+          <h3 class="users-title">Enrolled users</h3>
+        </div>
+        <div class="users-grid" id="usersGrid">
+          <div class="users-empty">No users enrolled yet.</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>
