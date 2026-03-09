@@ -5,5 +5,5 @@ opencv-python-headless==4.11.*
 numpy>=1.26,<2.0
 python-multipart==0.0.*
 scikit-learn==1.6.*
-tensorflow==2.16.*
+tensorflow==2.21.*
 pytest==8.*
