@@ -39,6 +39,7 @@ htmlcov/
 
 # ML model files (large binaries — store separately, not in git)
 *.tflite
+*.tflite.bak
 *.task
 *.h5
 *.pb

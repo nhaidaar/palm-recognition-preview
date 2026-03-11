@@ -216,6 +216,12 @@ function updateBrightnessBadge(videoEl, landmarks, badgeId) {
 // Mirrors the server's extract_palm_roi() logic, using landmarks already
 // computed by the browser's MediaPipe instance. Sends a small JPEG crop
 // instead of a full-resolution PNG, eliminating server-side detection.
+//
+// Also mirrors the notebook's calculate_roi rotation step: the knuckle line
+// (index-MCP → pinky-MCP) is rotated to horizontal before cropping so the
+// crop matches the training data distribution.
+//
+// Returns { data: base64string, rotationAngle: degrees }
 function extractClientROI(videoEl, landmarks) {
   const w = videoEl.videoWidth  || 640;
   const h = videoEl.videoHeight || 480;
@@ -225,23 +231,59 @@ function extractClientROI(videoEl, landmarks) {
   const middleMcp = landmarks[MIDDLE_MCP];
   const pinkyMcp  = landmarks[PINKY_MCP];
 
-  const cx = Math.round(middleMcp.x * w);
-  const cy = Math.round(((middleMcp.y + wrist.y) / 2) * h);
-  const palmWidth = Math.abs(Math.round((indexMcp.x - pinkyMcp.x) * w));
+  // Knuckle-line rotation angle (same logic as calculate_roi in the notebook)
+  const dx = (pinkyMcp.x - indexMcp.x) * w;
+  const dy = (pinkyMcp.y - indexMcp.y) * h;
+  const rotationAngle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+  // Rotate the video frame to align the knuckle line to horizontal
+  const knuckleCx = (indexMcp.x + pinkyMcp.x) / 2 * w;
+  const knuckleCy = (indexMcp.y + pinkyMcp.y) / 2 * h;
+  const rad = rotationAngle * (Math.PI / 180);
+  const cosA = Math.cos(rad);
+  const sinA = Math.sin(rad);
+
+  // Rotate a point around the knuckle midpoint
+  function rotPt(px, py) {
+    const rx = cosA * (px - knuckleCx) + sinA * (py - knuckleCy) + knuckleCx;
+    const ry = -sinA * (px - knuckleCx) + cosA * (py - knuckleCy) + knuckleCy;
+    return [rx, ry];
+  }
+
+  const [midRx, midRy]   = rotPt(middleMcp.x * w, middleMcp.y * h);
+  const [wristRx, wristRy] = rotPt(wrist.x * w, wrist.y * h);
+  const [idxRx]           = rotPt(indexMcp.x * w, indexMcp.y * h);
+  const [pnkRx]           = rotPt(pinkyMcp.x * w, pinkyMcp.y * h);
+
+  const cx = Math.round(midRx);
+  const cy = Math.round((midRy + wristRy) / 2);
+  const palmWidth = Math.abs(Math.round(idxRx - pnkRx));
   const roiSize = Math.max(Math.round(palmWidth * 1.5), 60);
   const half = Math.round(roiSize / 2);
 
   const x1 = Math.max(0, cx - half);
   const y1 = Math.max(0, cy - half);
-  const x2 = Math.min(w, cx + half);
-  const y2 = Math.min(h, cy + half);
+  const cropW = Math.min(w, cx + half) - x1;
+  const cropH = Math.min(h, cy + half) - y1;
+
+  // Draw the rotated video frame into an intermediate canvas, then crop
+  const rotCanvas = document.createElement('canvas');
+  rotCanvas.width  = w;
+  rotCanvas.height = h;
+  const rctx = rotCanvas.getContext('2d');
+  rctx.save();
+  rctx.translate(knuckleCx, knuckleCy);
+  rctx.rotate(-rad);
+  rctx.translate(-knuckleCx, -knuckleCy);
+  rctx.drawImage(videoEl, 0, 0, w, h);
+  rctx.restore();
 
   const roiCanvas = document.createElement('canvas');
-  roiCanvas.width  = x2 - x1;
-  roiCanvas.height = y2 - y1;
-  roiCanvas.getContext('2d').drawImage(videoEl, x1, y1, x2 - x1, y2 - y1, 0, 0, x2 - x1, y2 - y1);
+  roiCanvas.width  = cropW;
+  roiCanvas.height = cropH;
+  roiCanvas.getContext('2d').drawImage(rotCanvas, x1, y1, cropW, cropH, 0, 0, cropW, cropH);
 
-  return roiCanvas.toDataURL('image/jpeg', 0.9);
+  return { data: roiCanvas.toDataURL('image/jpeg', 0.9), rotationAngle };
 }
 
 // ── Ring progress ────────────────────────────────────────────────
@@ -372,6 +414,7 @@ function switchTab(tab) {
   );
 
   if (tab === 'log') {
+    logPagState.page = 0;
     loadLogs();
     loadUsers();
   }
@@ -404,10 +447,14 @@ async function triggerScan() {
   triggerFlash('captureFlash');
   showScanning();
 
-  // Prefer client-side ROI crop (skips server MediaPipe, saves ~500–1500ms)
-  let b64, isRoi;
+  // Prefer client-side ROI crop (skips server MediaPipe, saves ~500–1500ms).
+  // Also send the knuckle-line rotation angle so the server can de-rotate the
+  // ROI before preprocessing, matching the training pipeline.
+  let b64, isRoi, rotationAngle = 0;
   if (state.lastLandmarks && state.lastLandmarks.length > 0) {
-    b64   = extractClientROI(video, state.lastLandmarks[0]);
+    const roi = extractClientROI(video, state.lastLandmarks[0]);
+    b64           = roi.data;
+    rotationAngle = roi.rotationAngle;
     isRoi = true;
   } else {
     b64   = captureFrame(video);
@@ -420,7 +467,7 @@ async function triggerScan() {
     const res = await fetch('/api/recognize', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: b64, is_roi: isRoi }),
+      body: JSON.stringify({ image: b64, is_roi: isRoi, rotation_angle: rotationAngle }),
     });
     const elapsed = Math.round(performance.now() - scanStart);
 
@@ -515,9 +562,11 @@ btnReset?.addEventListener('click', () => {
 function triggerCapture() {
   if (state.capturedImages.length >= 5) return;
 
-  let b64, isRoi;
+  let b64, isRoi, rotationAngle = 0;
   if (state.lastLandmarks && state.lastLandmarks.length > 0) {
-    b64   = extractClientROI(videoReg, state.lastLandmarks[0]);
+    const roi = extractClientROI(videoReg, state.lastLandmarks[0]);
+    b64           = roi.data;
+    rotationAngle = roi.rotationAngle;
     isRoi = true;
   } else {
     b64   = captureFrame(videoReg);
@@ -525,7 +574,7 @@ function triggerCapture() {
   }
 
   triggerFlash('captureFlashReg');
-  state.capturedImages.push({ data: b64, isRoi });
+  state.capturedImages.push({ data: b64, isRoi, rotationAngle });
 
   const count = state.capturedImages.length;
   $('captureCounter').textContent = `${count} / 5`;
@@ -533,6 +582,11 @@ function triggerCapture() {
 
   document.querySelectorAll('.dot').forEach((dot, i) =>
     dot.classList.toggle('filled', i < count)
+  );
+
+  // In-camera pips
+  document.querySelectorAll('.cam-pip').forEach((pip, i) =>
+    pip.classList.toggle('filled', i < count)
   );
 
   if (count >= 5) {
@@ -557,6 +611,10 @@ btnRegister.addEventListener('click', async () => {
   setFeedback('Registering…', '');
 
   const allRoi = state.capturedImages.every((c) => c.isRoi);
+  // Average rotation angle across all captures (hand barely moves between shots)
+  const avgRotation = allRoi
+    ? state.capturedImages.reduce((s, c) => s + (c.rotationAngle || 0), 0) / state.capturedImages.length
+    : 0;
 
   try {
     const res = await fetch('/api/register', {
@@ -566,6 +624,7 @@ btnRegister.addEventListener('click', async () => {
         name,
         images: state.capturedImages.map((c) => c.data),
         is_roi: allRoi,
+        rotation_angle: avgRotation,
       }),
     });
     const data = await res.json();
@@ -617,13 +676,45 @@ function setFeedback(msg, type) {
 }
 
 // ── Access Log ───────────────────────────────────────────────────
-btnRefresh.addEventListener('click', () => { loadLogs(); loadUsers(); });
+// ── Access Log Pagination ─────────────────────────────────────────
+const LOG_PAGE_SIZE = 10;
+const logPagState = { page: 0, total: 0 };
+
+btnRefresh.addEventListener('click', () => {
+  logPagState.page = 0;
+  loadLogs();
+  loadUsers();
+});
+
+$('btnLogPrev')?.addEventListener('click', () => {
+  if (logPagState.page > 0) { logPagState.page--; loadLogs(); }
+});
+
+$('btnLogNext')?.addEventListener('click', () => {
+  const totalPages = Math.ceil(logPagState.total / LOG_PAGE_SIZE);
+  if (logPagState.page < totalPages - 1) { logPagState.page++; loadLogs(); }
+});
 
 async function loadLogs() {
   try {
-    const logs = await fetch('/api/logs?limit=100').then((r) => r.json());
+    const [countRes, logs] = await Promise.all([
+      fetch('/api/logs/count').then((r) => r.json()),
+      fetch(`/api/logs?limit=${LOG_PAGE_SIZE}&offset=${logPagState.page * LOG_PAGE_SIZE}`).then((r) => r.json()),
+    ]);
+    logPagState.total = countRes.count ?? 0;
     renderLogs(logs);
+    updateLogPagination();
   } catch (err) { console.error(err); }
+}
+
+function updateLogPagination() {
+  const totalPages = Math.max(1, Math.ceil(logPagState.total / LOG_PAGE_SIZE));
+  const pagInfo = $('pagInfo');
+  if (pagInfo) pagInfo.textContent = `Page ${logPagState.page + 1} of ${totalPages}`;
+  const prev = $('btnLogPrev');
+  const next = $('btnLogNext');
+  if (prev) prev.disabled = logPagState.page === 0;
+  if (next) next.disabled = logPagState.page >= totalPages - 1;
 }
 
 function renderLogs(logs) {

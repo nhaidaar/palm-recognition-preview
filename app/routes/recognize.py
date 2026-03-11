@@ -13,7 +13,8 @@ router = APIRouter()
 
 class RecognizeRequest(BaseModel):
     image: str
-    is_roi: bool = False  # True when the browser has pre-cropped the palm ROI
+    is_roi: bool = False          # True when the browser has pre-cropped the palm ROI
+    rotation_angle: float = 0.0   # Knuckle-line tilt (deg) from index-MCP→pinky-MCP vector
 
 
 class RecognizeResponse(BaseModel):
@@ -47,8 +48,9 @@ async def recognize(req: RecognizeRequest):
         raise HTTPException(status_code=400, detail="Invalid image data")
 
     if req.is_roi:
-        log.debug("RECOGNIZE | using pre-cropped client ROI — skipping server detection")
-        embedding = palm_processor.get_embedding_from_roi(frame)
+        log.debug("RECOGNIZE | using pre-cropped client ROI — skipping server detection  angle=%.1f°",
+                  req.rotation_angle)
+        embedding = palm_processor.get_embedding_from_roi(frame, req.rotation_angle)
     else:
         embedding = palm_processor.get_embedding(frame)
 

@@ -883,6 +883,33 @@ body {
   font-size: 0.875rem;
 }
 
+/* Log pagination */
+.log-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  max-width: 1000px;
+  margin: 0 auto 1.5rem;
+  padding: 4px 0;
+}
+
+.pag-info {
+  font-size: 0.82rem;
+  color: var(--text-2);
+  min-width: 90px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.btn-pag {
+  min-width: 76px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  justify-content: center;
+}
+
 /* Users section */
 .users-section {
   max-width: 1000px;

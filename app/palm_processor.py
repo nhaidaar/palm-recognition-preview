@@ -138,10 +138,40 @@ class PalmProcessor:
                   pinky_mcp.x, pinky_mcp.y,
                   middle_mcp.x, middle_mcp.y)
 
-        cx = int(middle_mcp.x * w)
-        cy = int(((middle_mcp.y + wrist.y) / 2) * h)
+        # ── Rotation normalisation ────────────────────────────────
+        # The training pipeline (calculate_roi in the notebook) rotates each
+        # frame so the index-MCP → pinky-MCP knuckle line is horizontal before
+        # cropping.  We replicate that here using the same landmarks so the ROI
+        # fed to the model matches the distribution it was trained on.
+        dx = (pinky_mcp.x - index_mcp.x) * w
+        dy = (pinky_mcp.y - index_mcp.y) * h
+        theta_deg = float(np.degrees(np.arctan2(dy, dx)))
 
-        palm_width = abs(int((index_mcp.x - pinky_mcp.x) * w))
+        knuckle_cx = int((index_mcp.x + pinky_mcp.x) / 2 * w)
+        knuckle_cy = int((index_mcp.y + pinky_mcp.y) / 2 * h)
+        R = cv2.getRotationMatrix2D((knuckle_cx, knuckle_cy), theta_deg, 1.0)
+        frame_rot = cv2.warpAffine(frame_rgb, R, (w, h), flags=cv2.INTER_LINEAR)
+
+        log.debug("DETECT | knuckle rotation theta=%.1f°  center=(%d,%d)",
+                  theta_deg, knuckle_cx, knuckle_cy)
+
+        # Project landmark coords into the rotated frame
+        def _rot_pt(lm):
+            x_px = lm.x * w
+            y_px = lm.y * h
+            rx = R[0, 0] * x_px + R[0, 1] * y_px + R[0, 2]
+            ry = R[1, 0] * x_px + R[1, 1] * y_px + R[1, 2]
+            return rx, ry
+
+        mid_rx, mid_ry = _rot_pt(middle_mcp)
+        wrist_rx, wrist_ry = _rot_pt(wrist)
+        idx_rx,  idx_ry  = _rot_pt(index_mcp)
+        pnk_rx,  pnk_ry  = _rot_pt(pinky_mcp)
+
+        cx = int(mid_rx)
+        cy = int((mid_ry + wrist_ry) / 2)
+
+        palm_width = abs(int(idx_rx - pnk_rx))
         roi_size = max(int(palm_width * 1.5), 60)
         half = roi_size // 2
 
@@ -154,7 +184,7 @@ class PalmProcessor:
                   "  box=[%d:%d, %d:%d]",
                   palm_width, roi_size, cx, cy, y1, y2, x1, x2)
 
-        roi = frame_rgb[y1:y2, x1:x2]
+        roi = frame_rot[y1:y2, x1:x2]
         if roi.size == 0:
             log.warning("DETECT | ROI is empty after crop — hand may be at image edge")
             return None
@@ -179,17 +209,32 @@ class PalmProcessor:
         processed = self.preprocess_roi(roi)
         return self._run_inference(processed)
 
-    def get_embedding_from_roi(self, roi_rgb: np.ndarray):
+    def get_embedding_from_roi(self, roi_rgb: np.ndarray, rotation_angle: float = 0.0):
         """Process a pre-extracted palm ROI, skipping hand detection.
 
         The browser already runs MediaPipe in VIDEO mode and can crop the ROI
         client-side, eliminating the slow server-side detection round-trip.
+
+        rotation_angle: knuckle-line angle (degrees) computed by the browser from
+        the index-MCP → pinky-MCP vector.  The ROI is rotated to cancel this tilt
+        so the preprocessing matches the training pipeline (calculate_roi in the
+        notebook always aligns the knuckle line to horizontal before cropping).
         """
         if roi_rgb is None or roi_rgb.size == 0:
             log.warning("DETECT | received empty ROI from client")
             return None
-        log.info("DETECT | using client-side ROI  shape=%s", roi_rgb.shape)
-        processed = self.preprocess_roi(roi_rgb)
+
+        log.info("DETECT | using client-side ROI  shape=%s  rotation=%.1f°",
+                 roi_rgb.shape, rotation_angle)
+
+        roi = roi_rgb
+        if abs(rotation_angle) > 0.5:
+            h, w = roi.shape[:2]
+            cx, cy = w / 2.0, h / 2.0
+            R = cv2.getRotationMatrix2D((cx, cy), rotation_angle, 1.0)
+            roi = cv2.warpAffine(roi, R, (w, h), flags=cv2.INTER_LINEAR)
+
+        processed = self.preprocess_roi(roi)
         return self._run_inference(processed)
 
     def _run_inference(self, processed: np.ndarray) -> np.ndarray:

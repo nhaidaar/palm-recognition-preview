@@ -57,6 +57,19 @@ def test_add_access_log(db):
     assert logs[0]["matched_name"] == "Unknown"
 
 
+def test_delete_user_preserves_access_logs(db):
+    emb = np.random.rand(1280).astype(np.float32)
+    user_id = db.add_user("LoggedUser", emb)
+    db.add_access_log(user_id=user_id, matched_name="LoggedUser", status="ALLOWED", similarity=0.9)
+
+    assert db.delete_user(user_id) is True
+
+    logs = db.get_access_logs(limit=10)
+    assert len(logs) == 1
+    assert logs[0]["matched_name"] == "LoggedUser"
+    assert logs[0]["user_id"] is None
+
+
 def test_get_access_logs_ordered(db):
     db.add_access_log(None, "First", "DENIED", 0.1)
     db.add_access_log(None, "Second", "DENIED", 0.2)

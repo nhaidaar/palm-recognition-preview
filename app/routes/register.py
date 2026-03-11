@@ -11,7 +11,8 @@ router = APIRouter()
 class RegisterRequest(BaseModel):
     name: str
     images: list
-    is_roi: bool = False  # True when the browser pre-cropped all palm ROIs
+    is_roi: bool = False          # True when the browser pre-cropped all palm ROIs
+    rotation_angle: float = 0.0   # Knuckle-line tilt (deg) from index-MCP→pinky-MCP vector
 
 
 class RegisterResponse(BaseModel):
@@ -41,7 +42,7 @@ async def register(req: RegisterRequest):
             raise HTTPException(status_code=400, detail=f"Invalid image at index {i}")
 
         if req.is_roi:
-            emb = palm_processor.get_embedding_from_roi(frame)
+            emb = palm_processor.get_embedding_from_roi(frame, req.rotation_angle)
         else:
             emb = palm_processor.get_embedding(frame)
 

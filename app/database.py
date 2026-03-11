@@ -108,6 +108,13 @@ class Database:
         return result
 
     def delete_user(self, user_id: int) -> bool:
+        # Preserve historical access logs when a user is removed. Existing log
+        # rows keep their matched_name/status/similarity, but their foreign key
+        # is detached so the user row can be deleted safely.
+        self.conn.execute(
+            "UPDATE access_logs SET user_id = NULL WHERE user_id = ?",
+            (user_id,),
+        )
         cursor = self.conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
         self.conn.commit()
         return cursor.rowcount > 0
@@ -125,13 +132,18 @@ class Database:
         )
         self.conn.commit()
 
-    def get_access_logs(self, limit: int = 50) -> list:
+    def get_access_logs(self, limit: int = 20, offset: int = 0) -> list:
         rows = self.conn.execute(
             "SELECT id, user_id, matched_name, status, similarity, timestamp "
-            "FROM access_logs ORDER BY timestamp DESC, id DESC LIMIT ?",
-            (limit,),
+            "FROM access_logs ORDER BY timestamp DESC, id DESC LIMIT ? OFFSET ?",
+            (limit, offset),
         ).fetchall()
         return [dict(r) for r in rows]
+
+    def count_access_logs(self) -> int:
+        return self.conn.execute(
+            "SELECT COUNT(*) FROM access_logs"
+        ).fetchone()[0]
 
     def close(self):
         self.conn.close()

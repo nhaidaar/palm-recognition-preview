@@ -5,7 +5,7 @@ Web-based preview of a smart door lock with palmprint recognition.
 ## Requirements
 
 - Python 3.10+
-- `final1.tflite` in the project root
+- `palm_recognition.tflite` in the project root
 - `hand_landmarker.task` in the project root (auto-downloaded on first run)
 
 ## Setup
@@ -43,7 +43,7 @@ Open: [http://127.0.0.1:8000](http://127.0.0.1:8000)
 1. MediaPipe Hands detects your palm and extracts a square ROI
 2. CLAHE enhances local contrast
 3. Image is resized to 224×224 (float32, 0-255 range)
-4. `final1.tflite` (EfficientNetB0) generates a 1280-dim embedding
+4. `palm_recognition.tflite` (EfficientNetB0) generates a 1280-dim embedding
 5. Cosine similarity compares the query embedding against each of the 5 stored per-capture embeddings; the best match per user is used
 6. Result: ALLOWED (≥ 0.65 similarity) or DENIED
 

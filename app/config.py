@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-MODEL_PATH = BASE_DIR / "final1.tflite"
+MODEL_PATH = BASE_DIR / "palm_recognition.tflite"
 HAND_LANDMARKER_PATH = BASE_DIR / "hand_landmarker.task"
 
 # DB_PATH can be overridden via environment variable for Docker deployments
