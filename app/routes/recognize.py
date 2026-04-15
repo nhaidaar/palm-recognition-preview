@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.config import SIMILARITY_THRESHOLD
+from app.services.recognition_service import match_embedding_and_log
 
 log = logging.getLogger("palmgate")
 router = APIRouter()
@@ -58,14 +59,5 @@ async def recognize(req: RecognizeRequest):
         log.warning("RECOGNIZE | returning 422 — no hand detected in frame")
         raise HTTPException(status_code=422, detail="No hand detected")
 
-    stored = db.get_all_embeddings()
-    result = palm_processor.compute_similarity(embedding, stored, SIMILARITY_THRESHOLD)
-
-    db.add_access_log(
-        user_id=result["user_id"],
-        matched_name=result["name"] if result["status"] == "ALLOWED" else "Unknown",
-        status=result["status"],
-        similarity=result["similarity"],
-    )
-
+    result = match_embedding_and_log(palm_processor, db, embedding, SIMILARITY_THRESHOLD)
     return RecognizeResponse(**result)

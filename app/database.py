@@ -41,6 +41,16 @@ class Database:
                 timestamp       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id)
             );
+            CREATE TABLE IF NOT EXISTS device_status (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                worker_state TEXT NOT NULL,
+                camera_connected INTEGER NOT NULL,
+                last_error TEXT,
+                fps REAL,
+                last_inference_ms REAL,
+                last_recognition_at TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         """)
         self.conn.commit()
 
@@ -144,6 +154,47 @@ class Database:
         return self.conn.execute(
             "SELECT COUNT(*) FROM access_logs"
         ).fetchone()[0]
+
+    def upsert_device_status(
+        self,
+        *,
+        worker_state: str,
+        camera_connected: bool,
+        last_error: str | None,
+        fps: float | None,
+        last_inference_ms: float | None,
+        last_recognition_at: str | None = None,
+    ):
+        self.conn.execute(
+            """
+            INSERT INTO device_status (
+                id, worker_state, camera_connected, last_error, fps, last_inference_ms, last_recognition_at, updated_at
+            ) VALUES (1, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(id) DO UPDATE SET
+                worker_state = excluded.worker_state,
+                camera_connected = excluded.camera_connected,
+                last_error = excluded.last_error,
+                fps = excluded.fps,
+                last_inference_ms = excluded.last_inference_ms,
+                last_recognition_at = excluded.last_recognition_at,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (
+                worker_state,
+                int(camera_connected),
+                last_error,
+                fps,
+                last_inference_ms,
+                last_recognition_at,
+            ),
+        )
+        self.conn.commit()
+
+    def get_device_status(self) -> dict | None:
+        row = self.conn.execute(
+            "SELECT worker_state, camera_connected, last_error, fps, last_inference_ms, last_recognition_at, updated_at FROM device_status WHERE id = 1"
+        ).fetchone()
+        return dict(row) if row else None
 
     def close(self):
         self.conn.close()

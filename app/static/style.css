@@ -374,6 +374,33 @@ body {
   backdrop-filter: blur(4px);
 }
 
+/* Device status card */
+.device-status-card {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 10px;
+}
+
+.device-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.85rem;
+  color: var(--text-2);
+}
+
+.device-status-row strong {
+  color: var(--text-1);
+  font-weight: 600;
+  text-align: right;
+}
+
 /* ── Scan controls row ── */
 .scan-controls {
   display: flex;

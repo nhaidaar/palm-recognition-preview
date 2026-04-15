@@ -778,6 +778,30 @@ async function loadStats() {
   } catch (_) { /* silent */ }
 }
 
+async function loadStatus() {
+  try {
+    const data = await fetch('/api/status').then((r) => r.json());
+    const device = data.device || {};
+    const workerState = device.worker_state ?? 'disabled';
+    const cameraConnected = !!device.camera_connected;
+
+    $('deviceWorkerState').textContent = workerState;
+    $('deviceCameraState').textContent = cameraConnected ? 'connected' : 'offline';
+    $('deviceFps').textContent = device.fps != null ? String(device.fps) : '—';
+    $('deviceLastRecognition').textContent = device.last_recognition_at ?? '—';
+
+    $('systemStatus').classList.toggle('offline', workerState !== 'running');
+    $('systemStatusLabel').textContent = workerState === 'running' ? 'Online' : 'Idle';
+  } catch (_) {
+    $('deviceWorkerState').textContent = 'unreachable';
+    $('deviceCameraState').textContent = 'offline';
+    $('deviceFps').textContent = '—';
+    $('deviceLastRecognition').textContent = '—';
+    $('systemStatus').classList.add('offline');
+    $('systemStatusLabel').textContent = 'Offline';
+  }
+}
+
 const esc = (s) =>
   String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
@@ -785,6 +809,8 @@ const esc = (s) =>
 (async () => {
   await startCamera();
   loadStats();
+  loadStatus();
+  setInterval(loadStatus, 5000);
   video.addEventListener('loadeddata', () => initMediaPipe(), { once: true });
   if (video.readyState >= 2) initMediaPipe();
 })();

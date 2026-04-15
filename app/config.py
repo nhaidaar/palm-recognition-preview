@@ -5,9 +5,20 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 MODEL_PATH = BASE_DIR / "palm_recognition.tflite"
 HAND_LANDMARKER_PATH = BASE_DIR / "hand_landmarker.task"
 
+APP_HOST = os.getenv("APP_HOST", "127.0.0.1")
+APP_PORT = int(os.getenv("APP_PORT", "8000"))
+
 # DB_PATH can be overridden via environment variable for Docker deployments
 # e.g. DB_PATH=/data/palmprint.db → mount a named volume at /data
 DB_PATH = Path(os.getenv("DB_PATH", str(BASE_DIR / "palmprint.db")))
+
+DEVICE_RUNTIME_ENABLED = os.getenv("DEVICE_RUNTIME_ENABLED", "0") == "1"
+CAMERA_SOURCE = os.getenv("CAMERA_SOURCE", "browser")
+CAMERA_DEVICE_INDEX = int(os.getenv("CAMERA_DEVICE_INDEX", "0"))
+DEVICE_FRAME_INTERVAL_MS = int(os.getenv("DEVICE_FRAME_INTERVAL_MS", "250"))
+DEVICE_HOLD_MS = int(os.getenv("DEVICE_HOLD_MS", "1200"))
+DEVICE_COOLDOWN_MS = int(os.getenv("DEVICE_COOLDOWN_MS", "3000"))
+DEVICE_STATUS_HEARTBEAT_MS = int(os.getenv("DEVICE_STATUS_HEARTBEAT_MS", "1000"))
 
 SIMILARITY_THRESHOLD = 0.75
 DUPLICATE_THRESHOLD  = 0.75   # block registration if palm already matches at this level
