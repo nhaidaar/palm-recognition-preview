@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Install Python deps in a separate layer so rebuilds after code changes
-# don't reinstall the ~600 MB of ML packages.
+# don't reinstall the ML packages.
 COPY requirements.docker.txt .
 RUN pip install --no-cache-dir -r requirements.docker.txt
 
