@@ -4,10 +4,8 @@ services:
     container_name: palmgate
     restart: unless-stopped
 
-    ports:
-      # Change the left-hand number to expose on a different host port,
-      # e.g. "80:8000" if you want to serve directly without a reverse proxy.
-      - "8000:8000"
+    expose:
+      - "8000"
 
     environment:
       # Database is stored in the named volume below so it survives rebuilds.
@@ -29,6 +27,14 @@ services:
     #   resources:
     #     limits:
     #       memory: 1g
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: palmgate-cloudflared
+    restart: unless-stopped
+    depends_on:
+      - palmgate
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
 
 volumes:
   palmgate-db:
