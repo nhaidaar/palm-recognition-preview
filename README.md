@@ -107,6 +107,22 @@ Sample sequence:
 
 Browser registration is kept only for local testing and may be less reliable on the USB device.
 
+## Seed initial users from photos
+
+You can bootstrap temporary users from named full-hand images in `seeds/`:
+
+```bash
+python scripts/seed_users.py seeds
+```
+
+Each image filename becomes the user name. The script uses the notebook-style preprocessing path, creates 7 mild palm ROI variants, averages the best 5 embeddings, and stores one averaged embedding per user. Existing users are skipped by default and access logs are preserved. To replace registered users while keeping logs:
+
+```bash
+python scripts/seed_users.py seeds --replace-users
+```
+
+Seeded users are for initial testing only. Re-register users with the USB 7-sample flow before using the system for a real door lock.
+
 ## Orange Pi workflow
 
 ### Phase 1 — iPhone test mode over Wi-Fi

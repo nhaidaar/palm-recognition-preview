@@ -33,7 +33,7 @@ htmlcov/
 .ipynb_checkpoints/
 
 # Database (runtime data, not source)
-*.db
+palmprint.db
 *.sqlite
 *.sqlite3
 
@@ -63,3 +63,4 @@ desktop.ini
 docs/
 tests/
 Dataset/
+seeds/
