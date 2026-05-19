@@ -9,11 +9,15 @@ from app.config import IMG_SIZE, CLAHE_CLIP_LIMIT, CLAHE_TILE_GRID, MODEL_PATH, 
 from app.notebook_preprocessing import NotebookPreprocessor
 
 log = logging.getLogger("palmgate")
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%H:%M:%S",
-)
+log.setLevel(logging.INFO)
+if not log.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(message)s",
+        datefmt="%H:%M:%S",
+    ))
+    log.addHandler(handler)
+log.propagate = True
 
 # MediaPipe hand landmark indices (same as legacy API)
 WRIST = 0
