@@ -74,6 +74,72 @@ def test_runtime_recognizes_after_hold_threshold():
     assert runtime.db.logged[0][2] == "ALLOWED"
 
 
+def test_runtime_stores_latest_camera_frame_for_preview():
+    from app.device_runtime import DeviceRuntime
+
+    frame = np.full((240, 320, 3), 127, dtype=np.uint8)
+
+    class FakeClock:
+        def now(self):
+            return 0
+
+    class FakeCamera:
+        def read(self):
+            return frame
+
+    class FakeProcessor:
+        def get_registration_guidance_metrics(self, frame, previous_metrics=None):
+            return {"hand_detected": False, "hand_clipped": True}
+
+    class FakeDB:
+        def upsert_device_status(self, **kwargs):
+            self.status = kwargs
+
+    runtime = DeviceRuntime(FakeCamera(), FakeProcessor(), FakeDB(), clock=FakeClock())
+
+    runtime.tick()
+
+    np.testing.assert_array_equal(runtime.latest_frame, frame)
+    assert runtime.get_latest_frame_jpeg().startswith(b"\xff\xd8")
+
+
+def test_runtime_starts_hold_for_detected_clipped_hand():
+    from app.device_runtime import DeviceRuntime
+
+    class FakeClock:
+        def __init__(self):
+            self.now_ms = 0
+
+        def now(self):
+            return self.now_ms
+
+    class FakeCamera:
+        def read(self):
+            return np.zeros((240, 320, 3), dtype=np.uint8)
+
+    class FakeProcessor:
+        def get_registration_guidance_metrics(self, frame, previous_metrics=None):
+            return {"hand_detected": True, "hand_clipped": True}
+
+        def get_embedding_from_notebook_frame(self, frame):
+            return np.ones(4, dtype=np.float32)
+
+    class FakeDB:
+        def upsert_device_status(self, **kwargs):
+            self.status = kwargs
+
+    runtime = DeviceRuntime(
+        camera=FakeCamera(),
+        palm_processor=FakeProcessor(),
+        db=FakeDB(),
+        clock=FakeClock(),
+        hold_ms=1000,
+    )
+
+    assert runtime.tick() is None
+    assert runtime.hand_seen_since_ms == 0
+
+
 def test_runtime_does_not_recognize_without_detected_hand():
     from app.device_runtime import DeviceRuntime
 

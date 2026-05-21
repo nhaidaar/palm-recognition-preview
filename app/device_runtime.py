@@ -3,6 +3,7 @@ import threading
 import time
 import uuid
 
+import cv2
 import numpy as np
 
 from app.camera import OpenCVCameraSource
@@ -65,8 +66,26 @@ class DeviceRuntime:
         self.last_recognition_at = None
         self.worker_state = "running"
         self.registration_session = None
+        self.latest_frame = None
+        self._frame_lock = threading.Lock()
         self._thread = None
         self._stop_event = threading.Event()
+
+    def _read_frame(self):
+        frame = self.camera.read()
+        with self._frame_lock:
+            self.latest_frame = frame.copy()
+        return frame
+
+    def get_latest_frame_jpeg(self):
+        with self._frame_lock:
+            frame = None if self.latest_frame is None else self.latest_frame.copy()
+        if frame is None:
+            return None
+        ok, encoded = cv2.imencode(".jpg", cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+        if not ok:
+            return None
+        return encoded.tobytes()
 
     def start_registration(self, name: str):
         if self.registration_session is not None:
@@ -89,7 +108,7 @@ class DeviceRuntime:
         guidance = self.registration_session.last_guidance
         if not guidance or not guidance.get("acceptable", False):
             raise RuntimeError("Frame does not satisfy guidance")
-        frame = self.camera.read()
+        frame = self._read_frame()
         embedding = self.palm_processor.get_embedding_from_notebook_frame(frame)
         if embedding is None:
             raise RuntimeError("Notebook preprocessing failed")
@@ -153,7 +172,7 @@ class DeviceRuntime:
             self.last_heartbeat_ms = now_ms
 
         if self.registration_session is not None:
-            frame = self.camera.read()
+            frame = self._read_frame()
             previous_metrics = None
             if self.registration_session.last_guidance:
                 previous_metrics = self.registration_session.last_guidance.get("metrics")
@@ -174,9 +193,9 @@ class DeviceRuntime:
         if now_ms < self.cooldown_until_ms:
             return None
 
-        frame = self.camera.read()
+        frame = self._read_frame()
         metrics = self.palm_processor.get_registration_guidance_metrics(frame)
-        if not metrics.get("hand_detected", False) or metrics.get("hand_clipped", True):
+        if not metrics.get("hand_detected", False):
             self.hand_seen_since_ms = None
             return None
 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/device-registration")
@@ -54,6 +54,18 @@ async def registration_status():
         "captured_count": len(session.captured_samples),
         "guidance": session.last_guidance,
     }
+
+
+@router.get("/preview.jpg")
+async def preview_frame():
+    frame = _runtime().get_latest_frame_jpeg()
+    if frame is None:
+        raise HTTPException(status_code=503, detail="USB preview frame is not ready")
+    return Response(
+        content=frame,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @router.post("/capture")

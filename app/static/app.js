@@ -399,6 +399,24 @@ async function startCamera() {
   }
 }
 
+function startUsbPreview() {
+  video.style.display = 'none';
+  let preview = $('usbPreview');
+  if (!preview) {
+    preview = document.createElement('img');
+    preview.id = 'usbPreview';
+    preview.className = 'usb-preview';
+    $('cameraFrame').prepend(preview);
+  }
+
+  const refreshPreview = () => {
+    preview.src = '/api/device-registration/preview.jpg?t=' + Date.now();
+  };
+  refreshPreview();
+  setInterval(refreshPreview, 500);
+  $('cameraStatus').innerHTML = '<span class="cam-dot"></span>USB camera active';
+}
+
 function captureFrame(videoEl) {
   const w = videoEl.videoWidth  || 640;
   const h = videoEl.videoHeight || 480;
@@ -955,7 +973,7 @@ const esc = (s) =>
     video.addEventListener('loadeddata', () => initMediaPipe(), { once: true });
     if (video.readyState >= 2) initMediaPipe();
   } else {
-    $('cameraStatus').innerHTML = '<span class="cam-dot"></span>USB camera active';
+    startUsbPreview();
     setAutoMode(false);
   }
 })();
