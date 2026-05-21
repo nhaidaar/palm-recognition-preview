@@ -409,11 +409,7 @@ function startUsbPreview() {
     $('cameraFrame').prepend(preview);
   }
 
-  const refreshPreview = () => {
-    preview.src = '/api/device-registration/preview.jpg?t=' + Date.now();
-  };
-  refreshPreview();
-  setInterval(refreshPreview, 500);
+  preview.src = '/api/device-registration/preview.mjpg';
   $('cameraStatus').innerHTML = '<span class="cam-dot"></span>USB camera active';
 }
 

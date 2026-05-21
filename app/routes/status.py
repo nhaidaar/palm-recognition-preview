@@ -27,6 +27,7 @@ async def status():
             "registration_session_id": session.id if session else None,
             "registration_sample_index": session.current_sample_index if session else None,
             "registration_captured_count": len(session.captured_samples) if session else 0,
+            "scan_state": getattr(device_runtime, "scan_state", None),
         }
     else:
         device = {
@@ -35,6 +36,7 @@ async def status():
             "registration_session_id": None,
             "registration_sample_index": None,
             "registration_captured_count": 0,
+            "scan_state": None,
         }
     return {
         "app": {

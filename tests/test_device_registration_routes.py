@@ -109,6 +109,38 @@ def test_usb_preview_endpoint_returns_latest_frame(monkeypatch):
     assert response.content.startswith(b"\xff\xd8")
 
 
+def test_usb_preview_stream_endpoint_returns_mjpeg_response(monkeypatch):
+    import asyncio
+    import app.main as main
+    from app.routes.device_registration import preview_stream
+
+    class FakeRuntime:
+        def get_latest_frame_jpeg(self):
+            return b"\xff\xd8jpeg-data"
+
+    monkeypatch.setattr(main, "device_runtime", FakeRuntime())
+
+    response = asyncio.run(preview_stream())
+
+    assert response.status_code == 200
+    assert response.media_type.startswith("multipart/x-mixed-replace")
+    assert response.headers["cache-control"] == "no-store"
+
+
+def test_mjpeg_frames_yields_latest_frame():
+    from app.routes.device_registration import mjpeg_frames
+
+    class FakeRuntime:
+        def get_latest_frame_jpeg(self):
+            return b"\xff\xd8jpeg-data"
+
+    chunk = next(mjpeg_frames(FakeRuntime()))
+
+    assert b"--frame" in chunk
+    assert b"Content-Type: image/jpeg" in chunk
+    assert b"\xff\xd8jpeg-data" in chunk
+
+
 def test_usb_preview_endpoint_returns_503_without_frame(monkeypatch):
     import app.main as main
 

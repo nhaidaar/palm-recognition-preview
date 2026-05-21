@@ -66,6 +66,7 @@ class DeviceRuntime:
         self.last_recognition_at = None
         self.worker_state = "running"
         self.registration_session = None
+        self.scan_state = {"stage": "starting", "metrics": None}
         self.latest_frame = None
         self._frame_lock = threading.Lock()
         self._thread = None
@@ -191,30 +192,52 @@ class DeviceRuntime:
             return None
 
         if now_ms < self.cooldown_until_ms:
+            self.scan_state = {
+                "stage": "cooldown",
+                "cooldown_remaining_ms": self.cooldown_until_ms - now_ms,
+                "metrics": None,
+            }
             return None
 
         frame = self._read_frame()
         metrics = self.palm_processor.get_registration_guidance_metrics(frame)
         if not metrics.get("hand_detected", False):
             self.hand_seen_since_ms = None
+            self.scan_state = {"stage": "waiting_for_hand", "metrics": metrics}
             return None
 
         embedding = self.palm_processor.get_embedding_from_notebook_frame(frame)
         if embedding is None:
             self.hand_seen_since_ms = None
+            self.scan_state = {"stage": "preprocessing_failed", "metrics": metrics}
             return None
 
         if self.hand_seen_since_ms is None:
             self.hand_seen_since_ms = now_ms
+            self.scan_state = {
+                "stage": "holding",
+                "hold_elapsed_ms": 0,
+                "hold_required_ms": self.hold_ms,
+                "metrics": metrics,
+            }
             return None
 
-        if now_ms - self.hand_seen_since_ms < self.hold_ms:
+        hold_elapsed_ms = now_ms - self.hand_seen_since_ms
+        if hold_elapsed_ms < self.hold_ms:
+            self.scan_state = {
+                "stage": "holding",
+                "hold_elapsed_ms": hold_elapsed_ms,
+                "hold_required_ms": self.hold_ms,
+                "metrics": metrics,
+            }
             return None
 
+        self.scan_state = {"stage": "recognizing", "metrics": metrics}
         result = match_embedding_and_log(self.palm_processor, self.db, embedding, self.threshold)
         self.last_recognition_at = str(now_ms)
         self.cooldown_until_ms = now_ms + self.cooldown_ms
         self.hand_seen_since_ms = None
+        self.scan_state = {"stage": "recognized", "result": result, "metrics": metrics}
         self.db.upsert_device_status(
             worker_state=self.worker_state,
             camera_connected=True,

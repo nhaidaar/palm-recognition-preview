@@ -103,6 +103,76 @@ def test_runtime_stores_latest_camera_frame_for_preview():
     assert runtime.get_latest_frame_jpeg().startswith(b"\xff\xd8")
 
 
+def test_runtime_tracks_scan_state_when_no_hand_detected():
+    from app.device_runtime import DeviceRuntime
+
+    class FakeClock:
+        def now(self):
+            return 0
+
+    class FakeCamera:
+        def read(self):
+            return np.zeros((240, 320, 3), dtype=np.uint8)
+
+    class FakeProcessor:
+        def get_registration_guidance_metrics(self, frame, previous_metrics=None):
+            return {"hand_detected": False, "brightness": 80.0, "blur_score": 120.0}
+
+        def get_embedding_from_notebook_frame(self, frame):
+            raise AssertionError("No-hand frames must not be embedded")
+
+    class FakeDB:
+        def upsert_device_status(self, **kwargs):
+            self.status = kwargs
+
+    runtime = DeviceRuntime(FakeCamera(), FakeProcessor(), FakeDB(), clock=FakeClock())
+
+    runtime.tick()
+
+    assert runtime.scan_state["stage"] == "waiting_for_hand"
+    assert runtime.scan_state["metrics"]["hand_detected"] is False
+
+
+def test_runtime_tracks_scan_state_while_holding_detected_hand():
+    from app.device_runtime import DeviceRuntime
+
+    class FakeClock:
+        def __init__(self):
+            self.now_ms = 0
+
+        def now(self):
+            return self.now_ms
+
+    class FakeCamera:
+        def read(self):
+            return np.zeros((240, 320, 3), dtype=np.uint8)
+
+    class FakeProcessor:
+        def get_registration_guidance_metrics(self, frame, previous_metrics=None):
+            return {"hand_detected": True, "hand_clipped": True}
+
+        def get_embedding_from_notebook_frame(self, frame):
+            return np.ones(4, dtype=np.float32)
+
+    class FakeDB:
+        def upsert_device_status(self, **kwargs):
+            self.status = kwargs
+
+    runtime = DeviceRuntime(
+        camera=FakeCamera(),
+        palm_processor=FakeProcessor(),
+        db=FakeDB(),
+        clock=FakeClock(),
+        hold_ms=1000,
+    )
+
+    runtime.tick()
+
+    assert runtime.scan_state["stage"] == "holding"
+    assert runtime.scan_state["hold_elapsed_ms"] == 0
+    assert runtime.scan_state["hold_required_ms"] == 1000
+
+
 def test_runtime_starts_hold_for_detected_clipped_hand():
     from app.device_runtime import DeviceRuntime
 

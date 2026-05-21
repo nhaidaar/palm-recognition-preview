@@ -23,5 +23,6 @@ def test_frontend_shows_usb_preview_without_browser_camera():
 
     assert "startUsbPreview()" in init_block
     assert "document.createElement('img')" in source
-    assert "preview.src = '/api/device-registration/preview.jpg" in source
+    assert "preview.src = '/api/device-registration/preview.mjpg'" in source
+    assert "setInterval(refreshPreview" not in source
     assert init_block.index("startUsbPreview()") < init_block.index("setAutoMode(false)")

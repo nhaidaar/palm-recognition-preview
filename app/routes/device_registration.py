@@ -1,4 +1,7 @@
+import time
+
 from fastapi import APIRouter, HTTPException, Response
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/device-registration")
@@ -64,6 +67,23 @@ async def preview_frame():
     return Response(
         content=frame,
         media_type="image/jpeg",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+def mjpeg_frames(runtime):
+    while True:
+        frame = runtime.get_latest_frame_jpeg()
+        if frame is not None:
+            yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
+        time.sleep(0.2)
+
+
+@router.get("/preview.mjpg")
+async def preview_stream():
+    return StreamingResponse(
+        mjpeg_frames(_runtime()),
+        media_type="multipart/x-mixed-replace; boundary=frame",
         headers={"Cache-Control": "no-store"},
     )
 

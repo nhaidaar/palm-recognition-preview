@@ -17,6 +17,23 @@ def test_status_endpoint_returns_device_status():
     assert "device_runtime_enabled" in data["app"]
 
 
+def test_status_includes_usb_scan_state(monkeypatch):
+    import app.main as main
+
+    class FakeRuntime:
+        worker_state = "running"
+        registration_session = None
+        scan_state = {"stage": "waiting_for_hand", "metrics": {"hand_detected": False}}
+
+    monkeypatch.setattr(main, "device_runtime", FakeRuntime())
+    client = TestClient(app)
+
+    response = client.get("/api/status")
+
+    assert response.status_code == 200
+    assert response.json()["device"]["scan_state"]["stage"] == "waiting_for_hand"
+
+
 def test_status_includes_registration_runtime_state(monkeypatch):
     import app.main as main
 
